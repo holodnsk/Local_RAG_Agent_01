@@ -12,7 +12,7 @@ from loguru import logger
 from langchain_community.vectorstores import FAISS
 
 # Настройка логирования с использованием loguru
-logger.add("log/01_Simple_RAG_PDF.log", format="{time} {level} {message}", level="DEBUG", rotation="100 KB", compression="zip")
+logger.add("log/02_Simple_RAG_PDF.log", format="{time} {level} {message}", level="DEBUG", rotation="100 KB", compression="zip")
 
 
 def get_index_db():
@@ -137,5 +137,6 @@ if __name__ == "__main__":
     db = get_index_db()
     NUMBER_RELEVANT_CHUNKS = 3 # Количество релевантных кусков для извлечения
     topic = 'О чем теорема Ферма? Для чего ее используют?' # Вопрос пользователя
+    logger.debug(topic)
     message_content = get_message_content(topic, db, NUMBER_RELEVANT_CHUNKS)
     model_response = get_model_response(topic, message_content)
