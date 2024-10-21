@@ -36,3 +36,7 @@ ollama pull llama3.2:3b-instruct-fp16
 * `get_message_content()` для извлечения релевантных данных,
 
 * `get_model_response()` для формирования ответа от модели.
+
+## 5. Локальный RAG с агентами на LLaMA3
+
+Запускать модуль `03_Local_RAG_Agent.py`
