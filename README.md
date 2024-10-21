@@ -2,6 +2,8 @@
 ## 1. Установить Ollama
 https://ollama.com/download/windows
 
+см. подробнее в этой публикации: https://t.me/AiExp01/81
+
 ## 2. Установить llama3.2
 ollama pull llama3.2:3b-instruct-fp16 
 
