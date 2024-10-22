@@ -1,15 +1,36 @@
-# Локальный RAG (Retrieval-Augmented Generation) и Агенты  
+# Локальный RAG (Retrieval-Augmented Generation) и Агенты 
+В этих примерах использованы:
 
+* **Ollama**: Инструмент, который позволяет запускать большие языковые модели (LLM) с открытым исходным кодом локально.
+
+* **llama3.2:3b-instruct-fp16**: Модель Llama 3.2, настроенная только на текст, оптимизированы для использования 
+в многоязычных диалогах, включая задачи агенского поиска и обобщения.
+
+* **LangChain**: Фреймворк, который предоставляет стандартный интерфейс для взаимодействия с LLM, источниками данных
+и другими компонентами.
+
+* **LangGraph**: Представляет собой фреймворк для оркестровки сложных агентных систем и является более 
+низкоуровневым и управляемым, чем агенты LangChain.
+
+* **Embeddings**: Использована модель `intfloat/multilingual-e5-large` с HuggingFace.
+
+## Источники:
+
+* Статья "Local RAG agent with LLaMA3" https://langchain-ai.github.io/langgraph/tutorials/rag/langgraph_adaptive_rag_local/
+
+* Видео (English 31 минута) Reliable, fully local RAG agents with LLaMA3.2-3b https://www.youtube.com/watch?v=bq1Plo2RhYI
 
 ## 1. Установить Ollama
 https://ollama.com/download/windows
 
 см. подробнее в этой публикации: https://t.me/AiExp01/81
 
-## 2. Установить llama3.2
-ollama pull llama3.2:3b-instruct-fp16 
+## 2. Установить модель Llama 3.2
+Выполнить: `ollama pull llama3.2:3b-instruct-fp16`
 
-## 3. Проверяем доступность локальной модели
+Проверить наличие модели, выполнить: `ollama pull`
+
+## 3. Проверяем доступность локальной модели из кода
 
 Запускать модуль `01_Simple_Request_Local_Model.py`
 
@@ -61,8 +82,3 @@ ollama pull llama3.2:3b-instruct-fp16
 Необходимо создать свой аккаунт на https://tavily.com/
 Сформировать свое значение TAVILY_API_KEY и записать его в файл `.env`, см. пример в файле `env_example.txt`
 
-Использованные материалы:
-
-* Статья "Local RAG agent with LLaMA3" https://langchain-ai.github.io/langgraph/tutorials/rag/langgraph_adaptive_rag_local/
-
-* Видео (English 31 минута) Reliable, fully local RAG agents with LLaMA3.2-3b https://www.youtube.com/watch?v=bq1Plo2RhYI
