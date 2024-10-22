@@ -56,4 +56,4 @@ ollama pull llama3.2:3b-instruct-fp16
 
 * Статья "Local RAG agent with LLaMA3" https://langchain-ai.github.io/langgraph/tutorials/rag/langgraph_adaptive_rag_local/
 
-* 
+* Видео (English 31 минута) Reliable, fully local RAG agents with LLaMA3.2-3b https://www.youtube.com/watch?v=bq1Plo2RhYI
