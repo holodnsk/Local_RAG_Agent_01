@@ -14,6 +14,10 @@
 
 * **Embeddings**: Использована модель `intfloat/multilingual-e5-large` с HuggingFace.
 
+* **Tavily**: Поисковая систему для Web поиска, оптимизированная для LLM и RAG. 
+Необходимо создать свой аккаунт на https://tavily.com/
+Сформировать свое значение `TAVILY_API_KEY` и записать его в файл `.env`, см. пример в файле `env_example.txt`
+
 ## Источники:
 
 * Статья "Local RAG agent with LLaMA3" https://langchain-ai.github.io/langgraph/tutorials/rag/langgraph_adaptive_rag_local/
@@ -78,7 +82,5 @@ https://ollama.com/download/windows
 
 ![](graph_image.png)
 
-Для Web поиска используется поисковая систему Tavily, оптимизированную для LLM и RAG.
-Необходимо создать свой аккаунт на https://tavily.com/
-Сформировать свое значение TAVILY_API_KEY и записать его в файл `.env`, см. пример в файле `env_example.txt`
+
 
