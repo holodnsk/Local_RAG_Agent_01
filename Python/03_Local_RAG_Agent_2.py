@@ -485,14 +485,14 @@ graph = workflow.compile()
 
 # Сохраняем картинку в файл
 graph_image = graph.get_graph().draw_mermaid_png()
-with open("graph_image.png", "wb") as png:
+with open("../graph_image.png", "wb") as png:
     png.write(graph_image)
 
 
 # Открытие и отображение изображения
 from PIL import Image as PILImage
 import io
-img = PILImage.open("graph_image.png")
+img = PILImage.open("../graph_image.png")
 img.show()
 
 if __name__ == "__main__":
