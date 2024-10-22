@@ -510,12 +510,12 @@ img = PILImage.open("../graph_image.png")
 img.show()
 
 if __name__ == "__main__":
-    # inputs = {"question": "О чем теорема Ферма? Для чего ее используют?", "max_retries": 3}
-    #
-    # for event in graph.stream(inputs, stream_mode="values"):
-    #     logger.debug(event)
-
-    inputs = {"question": "О чем теорема Геделя о неполноте? Для чего ее используют?", "max_retries": 3}
+    inputs = {"question": "О чем теорема Ферма? Для чего ее используют?", "max_retries": 3}
 
     for event in graph.stream(inputs, stream_mode="values"):
         logger.debug(event)
+
+    # inputs = {"question": "О чем теорема Геделя о неполноте? Для чего ее используют?", "max_retries": 3}
+    #
+    # for event in graph.stream(inputs, stream_mode="values"):
+    #     logger.debug(event)
