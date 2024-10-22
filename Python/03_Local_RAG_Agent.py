@@ -29,17 +29,22 @@ os.environ["TAVILY_API_KEY"] = TAVILY_API_KEY
 logger.add("log/03_Local_RAG_Agent.log", format="{time} {level} {message}", level="DEBUG", rotation="100 KB", compression="zip")
 
 # Инструкции для маршрутизации запросов
-router_instructions = """Ты - эксперт по маршрутизации вопроса пользователя в vectorstore (векторное хранилище) или веб-поиск (websearch).
-    Векторное хранилище содержит документы, связанные с математикой, химией  и физикой.
-    Используй векторное хранилище для вопросов по этим темам. Для всего остального, и особенно для текущих событий, используйте веб-поиск.
-    Возвращай JSON с единственным ключом, datasource, который является 'websearch' или 'vectorstore' в зависимости от вопроса."""
+# TODO здесь нужно настроить тему, для примера сказано про математику: 'related to mathematics'
+router_instructions = """You are an expert at routing a user question to a vectorstore or web search.
+
+    The vectorstore contains documents related to mathematics.
+
+    Use the vectorstore for questions on these topics. For all else, and especially for current events, use web-search.
+
+    Return JSON with single key, datasource, that is 'websearch' or 'vectorstore' depending on the question."""
 
 # Шаблоны инструкций для проверки документов и генерации ответов
-## Промт оценки документа из vectorstore
-doc_grader_prompt = """Вот полученный документ: \n\n {document} \n\n Вот вопрос пользователя: \n\n {question}. 
-    Это позволяет тщательно и объективно оценить, содержит ли документ хотя бы часть информации, относящейся к вопросу.
-    Возвращай JSON с единственным ключом, binary_score, который представляет собой оценку 'yes' или 'no', указывающую на то, 
-    содержит ли документ хотя бы часть информации, относящейся к вопросу."""
+# Doc Grader prompt
+doc_grader_prompt = """Here is the retrieved document: \n\n {document} \n\n Here is the user question: \n\n {question}. 
+
+    This carefully and objectively assess whether the document contains at least some information that is relevant to the question.
+
+    Return JSON with single key, binary_score, that is 'yes' or 'no' score to indicate whether the document contains at least some information that is relevant to the question."""
 
 # Doc grader instructions
 doc_grader_instructions = """You are a grader assessing relevance of a retrieved document to a user question.
