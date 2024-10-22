@@ -94,8 +94,10 @@ https://ollama.com/download/windows
 ![](graph_image.png)
 
 ---
+Видео см. здесь: https://youtu.be/ui_NvvMTKAc?si=T7XdoHrSKWcMsQwx
 
-Приглашаю в Телеграм общаться по это теме: https://t.me/AiExp01
+Обсуждение здесь: https://t.me/AiExp01/112
+
 
 
 
