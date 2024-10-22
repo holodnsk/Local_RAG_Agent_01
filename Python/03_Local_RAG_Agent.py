@@ -1,3 +1,14 @@
+"""
+Этот модуль является реализацией интеллектуальной системы поиска и генерации ответов на вопросы пользователей.
+Основной функционал модуля заключается в маршрутизации запросов между векторизированным хранилищем документов и
+веб-поиском, чтобы предоставить наиболее релевантный ответ.
+Система использует модели обработки естественного языка для генерации ответов на вопросы,
+оценивает релевантность найденных документов и проверяет "галлюцинации" (информацию, не основанную на фактах).
+Основные компоненты функционала включают векторное хранилище, обработку документов, механизм маршрутизации запросов и
+алгоритмы оценки качества и актуальности полученных ответов и документов.
+"""
+
+
 import os
 from dotenv import load_dotenv
 from loguru import logger
@@ -6,16 +17,18 @@ from langchain_community.vectorstores import FAISS
 from langchain_core.messages import HumanMessage, SystemMessage
 
 
-# возьмем переменные окружения из .env
+# Загрузка переменных окружения из файла .env
 load_dotenv()
 
-# загружаем значеняи из файла .env
+# Получение API ключа из переменных окружения
+# Аккаунт нужно создать здесь: https://tavily.com/
 TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY")
 os.environ["TAVILY_API_KEY"] = TAVILY_API_KEY
 
 # Настройка логирования с использованием loguru
-logger.add("log/03_Local_RAG_Agent_1.log", format="{time} {level} {message}", level="DEBUG", rotation="100 KB", compression="zip")
+logger.add("log/03_Local_RAG_Agent.log", format="{time} {level} {message}", level="DEBUG", rotation="100 KB", compression="zip")
 
+# Инструкции для маршрутизации запросов
 router_instructions = """You are an expert at routing a user question to a vectorstore or web search.
 
     The vectorstore contains documents related to agents, prompt engineering, and adversarial attacks.
@@ -24,17 +37,20 @@ router_instructions = """You are an expert at routing a user question to a vecto
 
     Return JSON with single key, datasource, that is 'websearch' or 'vectorstore' depending on the question."""
 
+# Шаблоны инструкций для проверки документов и генерации ответов
+# Doc Grader prompt
 doc_grader_prompt = """Here is the retrieved document: \n\n {document} \n\n Here is the user question: \n\n {question}. 
 
     This carefully and objectively assess whether the document contains at least some information that is relevant to the question.
 
     Return JSON with single key, binary_score, that is 'yes' or 'no' score to indicate whether the document contains at least some information that is relevant to the question."""
 
+# Doc grader instructions
 doc_grader_instructions = """You are a grader assessing relevance of a retrieved document to a user question.
 
     If the document contains keyword(s) or semantic meaning related to the question, grade it as relevant."""
 
-
+# RAG prompt
 rag_prompt = """You are an assistant for question-answering tasks. 
 
     Here is the context to use to answer the question:
@@ -103,11 +119,11 @@ answer_grader_instructions = """You are a teacher grading a quiz.
 
     Avoid simply stating the correct answer at the outset."""
 
-### Web Search Tool
+# Инструмент веб-поиска
 from langchain_community.tools.tavily_search import TavilySearchResults
 web_search_tool = TavilySearchResults(k=3)
 
-### LLM
+# Инициализация модели LLM для генерации ответов
 logger.debug('LLM')
 from langchain_ollama import ChatOllama
 local_llm = "llama3.2:3b-instruct-fp16"
@@ -115,6 +131,11 @@ llm = ChatOllama(model=local_llm, temperature=0)
 llm_json_mode = ChatOllama(model=local_llm, temperature=0, format="json")
 
 def get_index_db():
+    """
+    Функция для получения или создания векторной Базы-Знаний.
+    Если база уже существует, она загружается из файла,
+    иначе происходит чтение PDF-документов и создание новой базы.
+    """
     logger.debug('...get_index_db')
     # Создание векторных представлений (Embeddings)
     logger.debug('Embeddings')
@@ -127,7 +148,7 @@ def get_index_db():
         model_kwargs=model_kwargs
     )
 
-    db_file_name = 'db/db_02'
+    db_file_name = 'db/db_01'
     # Загрузка векторной Базы-Знаний из файла
     logger.debug('Загрузка векторной Базы-Знаний из файла')
     file_path = db_file_name + "/index.faiss"
@@ -140,28 +161,37 @@ def get_index_db():
 
     else:
         logger.debug('Еще не создана векторная База-Знаний')
-        urls = [
-            "https://lilianweng.github.io/posts/2023-06-23-agent/",
-            "https://lilianweng.github.io/posts/2023-03-15-prompt-engineering/",
-            "https://lilianweng.github.io/posts/2023-10-25-adv-attack-llm/",
-        ]
+        # Если базы нет, происходит создание новой путем чтения PDF-документов
+        # Document loaders
+        ## Document loaders: https://python.langchain.com/docs/integrations/document_loaders
+        ## PyPDFLoader: https://python.langchain.com/docs/modules/data_connection/document_loaders/pdf
+        from langchain_community.document_loaders import PyPDFLoader
 
-        # Загрузка документов
-        logger.debug('Загрузка документов')
-        from langchain_community.document_loaders import WebBaseLoader
-        docs = [WebBaseLoader(url).load() for url in urls]
-        docs_list = [item for sublist in docs for item in sublist]
+        logger.debug(f'Document loaders. dir={dir}')
+        dir = 'pdf'
+        documents = []
+        # Чтение всех PDF-файлов в указанной директории
+        for root, dirs, files in os.walk(dir):
+            for file in files:
+                if file.endswith(".pdf"):
+                    logger.debug(f'root={root} file={file}')
+                    loader = PyPDFLoader(os.path.join(root, file))
+                    documents.extend(loader.load())
 
-        # Split documents
-        logger.debug('Split documents')
+        # Разделение документов на меньшие части (chunks)
+        logger.debug('Разделение на chunks')
         from langchain.text_splitter import RecursiveCharacterTextSplitter
-        text_splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
-            chunk_size=1000, chunk_overlap=200
-        )
-        doc_splits = text_splitter.split_documents(docs_list)
+
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1024, chunk_overlap=0)
+        source_chunks = text_splitter.split_documents(documents)
+        logger.debug(type(source_chunks))
+        logger.debug(len(source_chunks))
+        logger.debug(source_chunks[100].metadata)
+        logger.debug(source_chunks[100].page_content)
+
         # Создание векторной Базы-Знаний из chunks
         logger.debug('Векторная База-Знаний')
-        db = FAISS.from_documents(doc_splits, embeddings)
+        db = FAISS.from_documents(source_chunks, embeddings)
 
         # Сохранение созданной Базы-Знаний в файл
         logger.debug('Сохранение векторной Базы-Знаний в файл')
@@ -174,12 +204,11 @@ db = get_index_db()
 logger.debug('Create retriever')
 retriever = db.as_retriever(k=3)
 
-# Post-processing
+# Функция для форматирования документов
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
 
-
-# Graph state
+# Создание графа состояния для управления потоками данных
 import operator
 from typing_extensions import TypedDict
 from typing import List, Annotated
@@ -187,73 +216,77 @@ from typing import List, Annotated
 
 class GraphState(TypedDict):
     """
-    Graph state is a dictionary that contains information we want to propagate to, and modify in, each graph node.
+    Описание структуры данных состояния графа.
+    Состояние графа - это словарь, содержащий информацию, которую мы хотим передавать и изменять в каждом узле графа.
     """
 
-    question: str  # User question
-    generation: str  # LLM generation
-    web_search: str  # Binary decision to run web search
-    max_retries: int  # Max number of retries for answer generation
-    answers: int  # Number of answers generated
+    question: str     # Вопрос пользователя
+    generation: str   # LLM генерация
+    web_search: str   # Двоичное решение о запуске веб-поиска
+    max_retries: int  # Максимальное количество повторных попыток генерации
+    answers: int      # Количество сгенерированных ответов
     loop_step: Annotated[int, operator.add]
-    documents: List[str]  # List of retrieved documents
+    documents: List[str]  # Список найденных документов
 
-### Nodes
+# Nodes - Определение узлов для каждого этапа работы системы
 from langchain.schema import Document
 from langgraph.graph import END
 def retrieve(state):
     """
-    Retrieve documents from vectorstore
+    Получение документов из векторного хранилища.
 
     Args:
-        state (dict): The current graph state
+        state (dict): Текущее состояние графа
 
     Returns:
-        state (dict): New key added to state, documents, that contains retrieved documents
+        state (dict): Новый ключ, добавленный в state, documents, который содержит найденные документы
     """
-    print("---RETRIEVE---")
+    logger.debug("---ЗАПРОСИТЬ---")
     question = state["question"]
 
     # Write retrieved documents to documents key in state
     documents = retriever.invoke(question)
+    logger.debug(f'documents = {documents}')
     return {"documents": documents}
 
 
 def generate(state):
     """
-    Generate answer using RAG on retrieved documents
+    Генерация ответа на основе извлеченных документов
 
     Args:
-        state (dict): The current graph state
+        state (dict): Текущее состояние графа
 
     Returns:
-        state (dict): New key added to state, generation, that contains LLM generation
+        state (dict): Новый ключ, добавленный в state, generation, которое содержит генерацию LLM
     """
-    print("---GENERATE---")
+    logger.debug("---СГЕНЕРИРОВАТЬ---")
     question = state["question"]
     documents = state["documents"]
     loop_step = state.get("loop_step", 0)
 
     # RAG generation
+    logger.debug('RAG generation')
     docs_txt = format_docs(documents)
     rag_prompt_formatted = rag_prompt.format(context=docs_txt, question=question)
     generation = llm.invoke([HumanMessage(content=rag_prompt_formatted)])
+    logger.debug(f'generation={generation}')
     return {"generation": generation, "loop_step": loop_step + 1}
 
 
 def grade_documents(state):
     """
-    Determines whether the retrieved documents are relevant to the question
-    If any document is not relevant, we will set a flag to run web search
+    Определяет, имеют ли найденные документы отношение к вопросу.
+    Если какой-либо документ не является релевантным, мы установим флаг для запуска веб-поиска
 
     Args:
-        state (dict): The current graph state
+        state (dict): Текущее состояние графа
 
     Returns:
-        state (dict): Filtered out irrelevant documents and updated web_search state
+        state (dict): Отфильтрованые нерелевантные документы и обновлено состояние web_search state
     """
 
-    print("---CHECK DOCUMENT RELEVANCE TO QUESTION---")
+    logger.debug("---ПРОВЕРЬКА СООТВЕТСТВИЕ ДОКУМЕНТА ВОПРОСУ---")
     question = state["question"]
     documents = state["documents"]
 
@@ -271,11 +304,11 @@ def grade_documents(state):
         grade = json.loads(result.content)["binary_score"]
         # Document relevant
         if grade.lower() == "yes":
-            print("---GRADE: DOCUMENT RELEVANT---")
+            logger.debug("---ОЦЕНКА: ДОКУМЕНТ РЕЛЕВАНТЕН---")
             filtered_docs.append(d)
         # Document not relevant
         else:
-            print("---GRADE: DOCUMENT NOT RELEVANT---")
+            logger.debug("---ОЦЕНКА: ДОКУМЕНТ НЕ РЕЛЕВАНТЕН---")
             # We do not include the document in filtered_docs
             # We set a flag to indicate that we want to run web search
             web_search = "Yes"
@@ -285,16 +318,16 @@ def grade_documents(state):
 
 def web_search(state):
     """
-    Web search based based on the question
+    Выполнение веб-поиска по запросу пользователя.
 
     Args:
-        state (dict): The current graph state
+        state (dict): Текущее состояние графа
 
     Returns:
-        state (dict): Appended web results to documents
+        state (dict): Добавленные найденные в web результаты  в documents
     """
 
-    print("---WEB SEARCH---")
+    logger.debug("---ПОИСК в ИНТЕРНЕТЕ---")
     question = state["question"]
     documents = state.get("documents", [])
 
@@ -302,50 +335,49 @@ def web_search(state):
     docs = web_search_tool.invoke({"query": question})
     web_results = "\n".join([d["content"] for d in docs])
     web_results = Document(page_content=web_results)
+    logger.debug(f'web_results={web_results}')
     documents.append(web_results)
     return {"documents": documents}
 
 
-### Edges
-
-
+# Определение логики маршрутизации запросов
 def route_question(state):
     """
-    Route question to web search or RAG
+    Маршрутизация вопроса к веб-поиску или векторному хранилищу.
 
     Args:
-        state (dict): The current graph state
+        state (dict): Текущее состояние графа
 
     Returns:
-        str: Next node to call
+        str: Следующий узел для вызова
     """
 
-    print("---ROUTE QUESTION---")
+    logger.debug("---ВОПРОС МАРШРУТА---")
     route_question = llm_json_mode.invoke(
         [SystemMessage(content=router_instructions)]
         + [HumanMessage(content=state["question"])]
     )
     source = json.loads(route_question.content)["datasource"]
     if source == "websearch":
-        print("---ROUTE QUESTION TO WEB SEARCH---")
+        logger.debug("---НАПРАВИТЬ ВОПРОС НА ПОИСК В ИНТЕРНЕТЕ---")
         return "websearch"
     elif source == "vectorstore":
-        print("---ROUTE QUESTION TO RAG---")
+        logger.debug("---НАПРАВИТЬ ВОПРОС В RAG---")
         return "vectorstore"
 
 
 def decide_to_generate(state):
     """
-    Determines whether to generate an answer, or add web search
+    Решение о том, по какому пути продолжить генерацию ответа.
 
     Args:
-        state (dict): The current graph state
+        state (dict): Текущее состояние графа
 
     Returns:
-        str: Binary decision for next node to call
+        str: Двоичное решение для следующего узла вызова
     """
 
-    print("---ASSESS GRADED DOCUMENTS---")
+    logger.debug("---ОЦЕНИВИТЬ GRADED ДОКУМЕНТЫ---")
     question = state["question"]
     web_search = state["web_search"]
     filtered_documents = state["documents"]
@@ -353,28 +385,28 @@ def decide_to_generate(state):
     if web_search == "Yes":
         # All documents have been filtered check_relevance
         # We will re-generate a new query
-        print(
-            "---DECISION: NOT ALL DOCUMENTS ARE RELEVANT TO QUESTION, INCLUDE WEB SEARCH---"
+        logger.debug(
+            "---РЕШЕНИЕ: НЕ ВСЕ ДОКУМЕНТЫ ИМЕЮТ ОТНОШЕНИЕ К ВОПРОСУ, ВКЛЮЧИТЕ ВЕБ-ПОИСК---"
         )
         return "websearch"
     else:
         # We have relevant documents, so generate answer
-        print("---DECISION: GENERATE---")
+        logger.debug("---РЕШЕНИЕ: ГЕНЕРИРОВАТЬ---")
         return "generate"
 
 
 def grade_generation_v_documents_and_question(state):
     """
-    Determines whether the generation is grounded in the document and answers question
+    Проверка соответствия сгенерированного ответа документам и вопросу.
 
     Args:
-        state (dict): The current graph state
+        state (dict): Текущее состояние графа
 
     Returns:
-        str: Decision for next node to call
+        str: Решение для следующего узла для вызова
     """
 
-    print("---CHECK HALLUCINATIONS---")
+    logger.debug("---ПРОВЕРИТЬ ГАЛЛЮЦИНАЦИИ---")
     question = state["question"]
     documents = state["documents"]
     generation = state["generation"]
@@ -391,9 +423,9 @@ def grade_generation_v_documents_and_question(state):
 
     # Check hallucination
     if grade == "yes":
-        print("---DECISION: GENERATION IS GROUNDED IN DOCUMENTS---")
+        logger.debug("---РЕШЕНИЕ: ГЕНЕРАЦИЯ ОСНОВАНА НА ДОКУМЕНТАХ---")
         # Check question-answering
-        print("---GRADE GENERATION vs QUESTION---")
+        logger.debug("---Оценка: ГЕНЕРАЦИЯ против ВОПРОСА---")
         # Test using question and generation from above
         answer_grader_prompt_formatted = answer_grader_prompt.format(
             question=question, generation=generation.content
@@ -404,34 +436,34 @@ def grade_generation_v_documents_and_question(state):
         )
         grade = json.loads(result.content)["binary_score"]
         if grade == "yes":
-            print("---DECISION: GENERATION ADDRESSES QUESTION---")
+            logger.debug("---РЕШЕНИЕ: GENERATION ОБРАЩАЕТСЯ К ВОПРОСУ---")
             return "useful"
         elif state["loop_step"] <= max_retries:
-            print("---DECISION: GENERATION DOES NOT ADDRESS QUESTION---")
+            logger.debug("---РЕШЕНИЕ: GENERATION НЕ ОТВЕЧАЕТ НА ВОПРОС---")
             return "not useful"
         else:
-            print("---DECISION: MAX RETRIES REACHED---")
+            logger.debug("---РЕШЕНИЕ: МАКСИМАЛЬНОЕ КОЛИЧЕСТВО ПОВТОРНЫХ ПОПЫТОК ДОСТИГНУТО---")
             return "max retries"
     elif state["loop_step"] <= max_retries:
-        print("---DECISION: GENERATION IS NOT GROUNDED IN DOCUMENTS, RE-TRY---")
+        logger.debug("---РЕШЕНИЕ: ГЕНЕРАЦИЯ НЕ ОСНОВАНА НА ДОКУМЕНТАХ, ПОВТОРИТЕ ПОПЫТКУ---")
         return "not supported"
     else:
-        print("---DECISION: MAX RETRIES REACHED---")
+        logger.debug("---РЕШЕНИЕ: МАКСИМАЛЬНОЕ КОЛИЧЕСТВО ПОВТОРНЫХ ПОПЫТОК ДОСТИГНУТО---")
         return "max retries"
 
-# Control Flow
+# Control Flow - управление потоками выполнения
 from langgraph.graph import StateGraph
 from IPython.display import Image, display
 
 workflow = StateGraph(GraphState)
 
-# Define the nodes
+# Определение узлов
 workflow.add_node("websearch", web_search)  # web search
 workflow.add_node("retrieve", retrieve)  # retrieve
 workflow.add_node("grade_documents", grade_documents)  # grade documents
 workflow.add_node("generate", generate)  # generate
 
-# Build graph
+# Построение графа
 workflow.set_conditional_entry_point(
     route_question,
     {
@@ -460,7 +492,7 @@ workflow.add_conditional_edges(
     },
 )
 
-# Compile
+# Компиляция графа
 graph = workflow.compile()
 # graph_image = Image(graph.get_graph().draw_mermaid_png())
 # display(graph_image)
@@ -477,6 +509,13 @@ import io
 img = PILImage.open("../graph_image.png")
 img.show()
 
-inputs = {"question": "What are the types of agent memory?", "max_retries": 3}
-for event in graph.stream(inputs, stream_mode="values"):
-    print(event)
+if __name__ == "__main__":
+    # inputs = {"question": "О чем теорема Ферма? Для чего ее используют?", "max_retries": 3}
+    #
+    # for event in graph.stream(inputs, stream_mode="values"):
+    #     logger.debug(event)
+
+    inputs = {"question": "О чем теорема Геделя о неполноте? Для чего ее используют?", "max_retries": 3}
+
+    for event in graph.stream(inputs, stream_mode="values"):
+        logger.debug(event)
