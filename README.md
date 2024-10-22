@@ -37,7 +37,7 @@ https://ollama.com/download/windows
 ## 2. Установить модель Llama 3.2
 Выполнить: `ollama pull llama3.2:3b-instruct-fp16`
 
-Проверить наличие модели, выполнить: `ollama pull`
+Проверить наличие модели, выполнить: `ollama list`
 
 ---
 
