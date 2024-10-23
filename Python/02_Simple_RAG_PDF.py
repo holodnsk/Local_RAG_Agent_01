@@ -1,19 +1,22 @@
 """ Описание модуля
-Этот модуль реализует метод генерации ответа на заданную тему, используя модель обучения на языковых примерах.
+Этот модуль реализует метод генерации ответа на заданную тему, используя OpenAI API.
 Основные шаги включают загрузку и обработку PDF-документов, создание векторной Базы-Знаний для поиска по схожести содержимого
-и использование модели для генерации ответа.
+и использование OpenAI для генерации ответа.
 Векторная База-Знаний хранится и загружается с локального диска для ускорения работы.
-
 """
-
 
 import os
 from loguru import logger
 from langchain_community.vectorstores import FAISS
+import openai
+from langchain.prompts import ChatPromptTemplate
 
 # Настройка логирования с использованием loguru
 logger.add("log/02_Simple_RAG_PDF.log", format="{time} {level} {message}", level="DEBUG", rotation="100 KB", compression="zip")
 
+# Установка API ключа OpenAI
+os.environ["OPENAI_API_KEY"] = "your-api-key-here"
+os.environ["OPENAI_API_URL"] = "url"
 
 def get_index_db():
     """
@@ -24,14 +27,7 @@ def get_index_db():
     logger.debug('...get_index_db')
     # Создание векторных представлений (Embeddings)
     logger.debug('Embeddings')
-    from langchain_huggingface import HuggingFaceEmbeddings
-    model_id = 'intfloat/multilingual-e5-large'
-    model_kwargs = {'device': 'cpu'} # Настройка для использования CPU (можно переключить на GPU)
-    # model_kwargs = {'device': 'cuda'}
-    embeddings = HuggingFaceEmbeddings(
-        model_name=model_id,
-        model_kwargs=model_kwargs
-    )
+    embeddings = FAISS.load_local("db/db_01", "text-embedding-ada-002")
 
     db_file_name = 'db/db_01'
     # Загрузка векторной Базы-Знаний из файла
@@ -86,35 +82,32 @@ def get_index_db():
 
 def get_message_content(topic, index_db, NUMBER_RELEVANT_CHUNKS):
     """
-        Функция для извлечения релевантных кусочков текста из Базы-Знаний.
-        Выполняется поиск по схожести, извлекаются top-N релевантных частей.
+    Функция для извлечения релевантных кусочков текста из Базы-Знаний.
+    Выполняется поиск по схожести, извлекаются top-N релевантных частей.
     """
-    # Similarity search
     import re
     logger.debug('...get_message_content: Similarity search')
-    docs = db.similarity_search(topic, k = NUMBER_RELEVANT_CHUNKS)
-    # Форматирование извлеченных данных
+    docs = db.similarity_search(topic, k=NUMBER_RELEVANT_CHUNKS)
     message_content = re.sub(r'\n{2}', ' ', '\n '.join([f'\n#### {i+1} Relevant chunk ####\n' + str(doc.metadata) + '\n' + doc.page_content + '\n' for i, doc in enumerate(docs)]))
     logger.debug(message_content)
     return message_content
 
-
 def get_model_response(topic, message_content):
     """
-        Функция для генерации ответа модели на основе переданного контекста и вопроса.
-        Используется LLM для создания ответа, используя переданный контекст.
+    Функция для генерации ответа модели на основе переданного контекста и вопроса.
+    Используется OpenAI для создания ответа.
     """
     logger.debug('...get_model_response')
 
-    # Загрузка модели для обработки языка (LLM)
-    from langchain_ollama import ChatOllama
-    logger.debug('LLM')
-    local_llm = "llama3.2:3b-instruct-fp16"
-    llm = ChatOllama(model=local_llm, temperature=0)
+    # Инициализация модели OpenAI
+    logger.debug('OpenAI LLM')
+    llm = ChatOpenAI(
+        model="gpt-3.5-turbo",  # или "gpt-4" для более мощной модели
+        temperature=0
+    )
 
-
-    # Промпт
-    rag_prompt = """Ты являешься помощником для выполнения заданий по ответам на вопросы. 
+    # Создание промпта
+    prompt = ChatPromptTemplate.from_template("""Ты являешься помощником для выполнения заданий по ответам на вопросы. 
     Вот контекст, который нужно использовать для ответа на вопрос:
     {context} 
     Внимательно подумайте над приведенным контекстом. 
@@ -122,21 +115,19 @@ def get_model_response(topic, message_content):
     {question}
     Дайте ответ на этот вопрос, используя только вышеуказанный контекст. 
     Используйте не более трех предложений и будьте лаконичны в ответе.
-    Ответ:"""
+    Ответ:""")
 
-    # Формирование запроса для LLM
-    from langchain_core.messages import HumanMessage
-    rag_prompt_formatted = rag_prompt.format(context=message_content, question=topic)
-    generation = llm.invoke([HumanMessage(content=rag_prompt_formatted)])
-    model_response = generation.content
+    # Формирование и отправка запроса
+    messages = prompt.format_messages(context=message_content, question=topic)
+    response = llm.invoke(messages)
+    model_response = response.content
     logger.debug(model_response)
     return model_response
 
 if __name__ == "__main__":
-    # Основной блок программы: инициализация, построение базы и генерация ответа
     db = get_index_db()
-    NUMBER_RELEVANT_CHUNKS = 3 # Количество релевантных кусков для извлечения
-    topic = 'Какие способы интеграции следует использовать' # Вопрос пользователя
+    NUMBER_RELEVANT_CHUNKS = 3
+    topic = 'Какие способы интеграции следует использовать'
     logger.debug(topic)
     message_content = get_message_content(topic, db, NUMBER_RELEVANT_CHUNKS)
     model_response = get_model_response(topic, message_content)
